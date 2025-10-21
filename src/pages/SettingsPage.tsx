@@ -237,24 +237,39 @@ export function SettingsPage() {
   // Funciones para API Keys de Toggl
   const verifyTogglConnection = async (apiKey: string): Promise<{ success: boolean; workspaceName?: string; workspaceId?: string; error?: string }> => {
     try {
+      console.log('🔍 Iniciando verificación de conexión Toggl...');
       const result = await togglApiService.verifyApiKey(apiKey);
       
-      if (result.success && result.user && result.workspaces) {
-        // Usar el primer workspace disponible
-        const primaryWorkspace = result.workspaces[0];
-        return {
-          success: true,
-          workspaceName: primaryWorkspace.name,
-          workspaceId: primaryWorkspace.id.toString(),
-        };
+      if (result.success && result.user) {
+        console.log('✅ API Key válida, usuario:', result.user.fullname);
+        
+        // Si hay workspaces, usar el primero
+        if (result.workspaces && result.workspaces.length > 0) {
+          const primaryWorkspace = result.workspaces[0];
+          console.log('✅ Workspace encontrado:', primaryWorkspace.name);
+          return {
+            success: true,
+            workspaceName: primaryWorkspace.name,
+            workspaceId: primaryWorkspace.id.toString(),
+          };
+        } else {
+          // API Key válida pero sin workspaces (caso raro pero posible)
+          console.log('⚠️ API Key válida pero sin workspaces');
+          return {
+            success: true,
+            workspaceName: `${result.user.fullname} (Sin workspace)`,
+            workspaceId: result.user.default_workspace_id?.toString() || 'default',
+          };
+        }
       } else {
+        console.log('❌ Error en verificación:', result.error);
         return {
           success: false,
           error: result.error || 'Error desconocido al verificar API Key',
         };
       }
     } catch (error) {
-      console.error('Error verificando conexión Toggl:', error);
+      console.error('❌ Error verificando conexión Toggl:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Error de conexión con Toggl',
@@ -263,8 +278,15 @@ export function SettingsPage() {
   };
 
   const handleVerifyApiKey = async (keyId: string) => {
+    console.log('🚀 Iniciando verificación de API Key:', keyId);
+    
     const keyToVerify = togglApiKeys.find(k => k.id === keyId);
-    if (!keyToVerify) return;
+    if (!keyToVerify) {
+      console.log('❌ API Key no encontrada:', keyId);
+      return;
+    }
+
+    console.log('🔍 Verificando API Key:', keyToVerify.name);
 
     // Actualizar estado a "pending"
     setTogglApiKeys(keys => keys.map(k => 
@@ -272,9 +294,12 @@ export function SettingsPage() {
     ));
 
     try {
+      console.log('📡 Llamando a verifyTogglConnection...');
       const result = await verifyTogglConnection(keyToVerify.apiKey);
+      console.log('📋 Resultado de verificación:', result);
 
       if (result.success) {
+        console.log('✅ Verificación exitosa, actualizando estado...');
         setTogglApiKeys(keys => keys.map(k => 
           k.id === keyId ? { 
             ...k, 
@@ -288,10 +313,12 @@ export function SettingsPage() {
         toast.success(`Conexión exitosa: ${result.workspaceName}`);
         
         // Cargar datos de Toggl automáticamente
-        if (result.workspaceId) {
+        if (result.workspaceId && result.workspaceId !== 'default') {
+          console.log('📊 Cargando datos de Toggl...');
           loadTogglData(keyToVerify.apiKey, result.workspaceId);
         }
       } else {
+        console.log('❌ Verificación fallida:', result.error);
         setTogglApiKeys(keys => keys.map(k => 
           k.id === keyId ? { 
             ...k, 
@@ -303,6 +330,7 @@ export function SettingsPage() {
         toast.error(`Error de conexión: ${result.error}`);
       }
     } catch (error) {
+      console.error('💥 Error inesperado en handleVerifyApiKey:', error);
       setTogglApiKeys(keys => keys.map(k => 
         k.id === keyId ? { 
           ...k, 
@@ -312,7 +340,6 @@ export function SettingsPage() {
         } : k
       ));
       toast.error('Error inesperado al verificar conexión');
-      console.error('Error verificando API Key:', error);
     }
   };
 

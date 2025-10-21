@@ -80,6 +80,18 @@ class TogglApiService {
     error?: string;
   }> {
     try {
+      console.log('🔍 Verificando API Key de Toggl...');
+      
+      // Verificar que la API Key no esté vacía
+      if (!apiKey || apiKey.trim().length === 0) {
+        return { success: false, error: 'API Key no puede estar vacía' };
+      }
+
+      // Verificar formato básico de API Key
+      if (apiKey.length < 10) {
+        return { success: false, error: 'API Key parece ser muy corta' };
+      }
+
       const response = await fetch(`${this.baseUrl}/me`, {
         method: 'GET',
         headers: {
@@ -87,6 +99,8 @@ class TogglApiService {
           'Content-Type': 'application/json',
         },
       });
+
+      console.log('📡 Respuesta de Toggl API:', response.status, response.statusText);
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -101,19 +115,28 @@ class TogglApiService {
       }
 
       const user: TogglUser = await response.json();
+      console.log('✅ Usuario verificado:', user.fullname);
       
-      // Obtener workspaces del usuario
-      const workspacesResponse = await fetch(`${this.baseUrl}/workspaces`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Basic ${btoa(apiKey + ':api_token')}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
+      // Obtener workspaces del usuario (opcional, no crítico)
       let workspaces: TogglWorkspace[] = [];
-      if (workspacesResponse.ok) {
-        workspaces = await workspacesResponse.json();
+      try {
+        const workspacesResponse = await fetch(`${this.baseUrl}/workspaces`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Basic ${btoa(apiKey + ':api_token')}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (workspacesResponse.ok) {
+          workspaces = await workspacesResponse.json();
+          console.log('✅ Workspaces obtenidos:', workspaces.length);
+        } else {
+          console.warn('⚠️ No se pudieron obtener workspaces, pero la API Key es válida');
+        }
+      } catch (workspaceError) {
+        console.warn('⚠️ Error obteniendo workspaces:', workspaceError);
+        // No fallar por esto, la API Key sigue siendo válida
       }
 
       return {
@@ -122,7 +145,7 @@ class TogglApiService {
         workspaces,
       };
     } catch (error) {
-      console.error('Error verificando API Key de Toggl:', error);
+      console.error('❌ Error verificando API Key de Toggl:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Error de conexión con Toggl API',
